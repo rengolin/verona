@@ -1,0 +1,66 @@
+[
+  {
+    "name": "LLVM Lab",
+    "base_url": "http://lab.llvm.org:8011",
+    "builder_url": "builders",
+    "build_url": "builds",
+    "builders": [
+      {
+        "name": "Core",
+        "bots": [
+          { "name": "clang-x86_64-debian-fast" },
+          { "name": "llvm-clang-x86_64-win-fast" },
+          { "name": "clang-x64-windows-msvc" },
+          { "name": "clang-x86_64-linux-abi-test" },
+          { "name": "mlir-windows" },
+          { "name": "mlir-nvidia" },
+          { "name": "clang-cmake-armv7-quick" },
+          { "name": "clang-cmake-armv8-lld" },
+          { "name": "clang-cmake-aarch64-quick" },
+          { "name": "clang-cmake-aarch64-lld" }
+        ]
+      },
+      {
+        "name": "Others",
+        "bots": [
+          { "name": "llvm-clang-lld-x86_64-scei-ps4-ubuntu-fast" },
+          { "name": "llvm-clang-lld-x86_64-scei-ps4-windows10pro-fast" },
+          { "name": "llvm-clang-x86_64-expensive-checks-win" },
+          { "name": "llvm-clang-x86_64-expensive-checks-ubuntu" },
+          { "name": "llvm-clang-x86_64-expensive-checks-debian" },
+          { "name": "llvm-clang-win-x-armv7l" },
+          { "name": "llvm-clang-win-x-aarch64" },
+          { "name": "clang-cmake-armv7-selfhost" },
+          { "name": "clang-cmake-armv7-selfhost-neon" },
+          { "name": "clang-cmake-armv7-global-isel"},
+          { "name": "clang-cmake-aarch64-global-isel"}
+        ]
+      },
+      {
+        "name": "Sanitizer",
+        "bots": [
+          { "name": "sanitizer-x86_64-linux" },
+          { "name": "sanitizer-windows" },
+          { "name": "sanitizer-x86_64-linux-bootstrap-ubsan" },
+          { "name": "sanitizer-x86_64-linux-bootstrap-msan" },
+          { "name": "clang-cmake-armv7-full" },
+          { "name": "clang-cmake-thumbv7-full-sh" },
+          { "name": "clang-cmake-aarch64-full" }
+        ]
+      },
+      {
+        "name": "Libcxx",
+        "bots": [
+          { "name": "libcxx-libcxxabi-x86_64-linux-debian" },
+          { "name": "libcxx-libcxxabi-x86_64-linux-ubuntu-cxx17" },
+          { "name": "libcxx-libcxxabi-libunwind-armv7-linux" },
+          { "name": "libcxx-libcxxabi-libunwind-armv7-linux-noexceptions" },
+          { "name": "libcxx-libcxxabi-libunwind-armv8-linux" },
+          { "name": "libcxx-libcxxabi-libunwind-armv8-linux-noexceptions" },
+          { "name": "libcxx-libcxxabi-libunwind-aarch64-linux" },
+          { "name": "libcxx-libcxxabi-libunwind-aarch64-linux-noexceptions" }
+        ]
+      }
+    ]
+  }
+]
