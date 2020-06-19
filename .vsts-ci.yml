@@ -14,6 +14,7 @@ schedules:
     - master
 
 jobs:
+############################################## Configure CI Run
 - job: ConfigureCIRun
   pool:
     vmImage: 'ubuntu-16.04'
@@ -41,14 +42,25 @@ jobs:
           echo "##vso[task.setvariable variable=docOnly;isOutput=true]true" #set variable to testRuntime to On
         fi
       fi
+      if [ -z "$(LLVMCommit)" ]; then
+        echo "LLVMCommit empty, picking from submodule"
+        LLVMCommit=$(git submodule status external/llvm-project | grep -o "[0-9a-f]\{11\}" | head -n 1)
+      else
+        LLVMCommit=$(LLVMCommit)
+      fi
+      echo "LLVMCommit: $LLVMCommit"
+      echo "##vso[task.setvariable variable=LLVMCommit;isOutput=true]$LLVMCommit"
     displayName: Check for runtime changes.
     name: setVarStep
+
+############################################## Linux Builds
 - job: 
   displayName: Linux
   dependsOn: ConfigureCIRun
   condition: eq(dependencies.ConfigureCIRun.outputs['setVarStep.docOnly'], 'false')
   variables: 
     RTTests: $[ dependencies.ConfigureCIRun.outputs['setVarStep.testRuntime'] ]
+    LLVMCommit: $[ dependencies.ConfigureCIRun.outputs['setVarStep.LLVMCommit'] ]
   pool:
     vmImage: 'ubuntu-16.04'
   strategy:
@@ -56,13 +68,13 @@ jobs:
       Clang-8 Debug:
         CC: clang-8
         CXX: clang++-8
-        CXXFLAGS: -stdlib=libstdc++
+        CXXFLAGS: "-stdlib=libstdc++ -std=c++17"
         BuildType: Debug
         Asan: Off
       Clang-8 Release:
         CC: clang-8
         CXX: clang++-8
-        CXXFLAGS: -stdlib=libstdc++
+        CXXFLAGS: "-stdlib=libstdc++ -std=c++17"
         Asan: Off
         BuildType: Release
       Clang-8 Debug (ASAN):
@@ -79,21 +91,44 @@ jobs:
         Asan: On
   steps:
   - checkout: self
-    submodules: recursive
+
+  - script: |
+      set -eo pipefail
+      git submodule init
+      git submodule update --depth 1 --recursive
+    displayName: 'Checkout submodules'
+
+  - script:
+      echo "##vso[task.setvariable variable=PKG_NAME]verona-llvm-x86_64-linux-release-$(LLVMCommit)"
+    displayName: 'Set LLVM Package'
+
+  - task: UniversalPackages@0
+    displayName: 'Download Package'
+    inputs:
+      command: download
+      vstsFeed: Project%20Verona/LLVMBuild@Release
+      vstsFeedPackage: $(PKG_NAME)
+      vstsPackageVersion: '*'
+      downloadDirectory: /tmp/
+
+  - bash: |
+      set -eo pipefail
+      ./utils/llvm/setup-llvm-builddir.sh /tmp/$(PKG_NAME).tar.gz
+    displayName: 'Setup LLVM Build dir'
+    workingDirectory: '$(Build.SourcesDirectory)'
 
   - script: |
       set -eo pipefail
       sudo apt-get update
       sudo apt-get install -y ninja-build
-
       sudo pip install wheel OutputCheck
     displayName: 'Install Build Dependencies'
 
   - task: CMake@1
-    displayName: 'CMake .. -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_C_COMPILER=$(CC) -DCMAKE_CXX_COMPILER=$(CXX) -DCMAKE_CXX_FLAGS=$(CXXFLAGS) -DUSE_ASAN=$(Asan) -DVERONA_CI_BUILD=On -DSNMALLOC_CI_BUILD=On -DRT_TESTS=$(RTTests)'
+    displayName: 'CMake .. -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_C_COMPILER=$(CC) -DCMAKE_CXX_COMPILER=$(CXX) -DCMAKE_CXX_FLAGS="$(CXXFLAGS)" -DUSE_ASAN=$(Asan) -DVERONA_CI_BUILD=On -DSNMALLOC_CI_BUILD=On -DRT_TESTS=$(RTTests) -DLLVM_LIT_ARGS=-sv'
     inputs:
       cmakeArgs: |
-        .. -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_C_COMPILER=$(CC) -DCMAKE_CXX_COMPILER=$(CXX) -DCMAKE_CXX_FLAGS=$(CXXFLAGS) -DUSE_ASAN=$(Asan) -DVERONA_CI_BUILD=On -DSNMALLOC_CI_BUILD=On -DRT_TESTS=$(RTTests)
+        .. -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_C_COMPILER=$(CC) -DCMAKE_CXX_COMPILER=$(CXX) -DCMAKE_CXX_FLAGS="$(CXXFLAGS)" -DUSE_ASAN=$(Asan) -DVERONA_CI_BUILD=On -DSNMALLOC_CI_BUILD=On -DRT_TESTS=$(RTTests) -DLLVM_LIT_ARGS='-sv'
 
   - script: |
       set -eo pipefail
@@ -104,49 +139,90 @@ jobs:
 
   - script: |
       set -eo pipefail
+      # TODO: Make all this part of the "ninja check" target
       export ASAN_SYMBOLIZER_PATH=/usr/lib/llvm-6.0/bin/llvm-symbolizer
       export ASAN_OPTIONS="alloc_dealloc_mismatch=0 symbolize=1"
       ctest -j 4 -E "([1-9][0-9]00|[4-9]00)" --timeout 400 --output-on-failure
+      ninja check-verona-mlir
     workingDirectory: build
     failOnStderr: true
     displayName: Tests
 
+############################################## Windows Builds
 - job: 
   displayName: Windows
   dependsOn: ConfigureCIRun
   condition: eq(dependencies.ConfigureCIRun.outputs['setVarStep.docOnly'], 'false')
   variables: 
     RTTests: $[ dependencies.ConfigureCIRun.outputs['setVarStep.testRuntime'] ]
-
+    LLVMCommit: $[ dependencies.ConfigureCIRun.outputs['setVarStep.LLVMCommit'] ]
   pool:
-    vmImage: 'vs2017-win2016'
+    vmImage: 'windows-latest'
   strategy:
     matrix:
       Debug:
+        CXXFLAGS: "-std=c++17"
         BuildType: Debug
       Release:
+        CXXFLAGS: "-std=c++17"
         BuildType: Release
 
   steps:
   - checkout: self
-    submodules: recursive
 
-  - script:
-      pip install OutputCheck
-      
   - script: |
-      mkdir build
-      cd build
-      cmake .. -G"Visual Studio 15 2017 Win64" -DVERONA_CI_BUILD=On -DSNMALLOC_CI_BUILD=On -DRT_TESTS=$(RTTests)
+      git submodule init
+      git submodule update --depth 1 --recursive
+    displayName: 'Checkout submodules'
 
-  - task: MSBuild@1
-    displayName: 'Build solution build/verona-lang.sln'
+  - task: PowerShell@2
     inputs:
-      solution: build/INSTALL.vcxproj
-      msbuildArguments: '/m /p:Configuration=$(BuildType)'
+      targetType: inline
+      script:
+        Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+    displayName: 'Install Choco'
+
+  - task: PowerShell@2
+    inputs:
+      targetType: inline
+      script:
+        C:\ProgramData\chocolatey\bin\choco install --accept-license -y cmake llvm ninja
+        pip install OutputCheck
+    displayName: 'Install Dependencies'
+
+  - bash:
+      echo "##vso[task.setvariable variable=PKG_NAME]verona-llvm-x86_64-windows-release-$(LLVMCommit)"
+    displayName: 'Set LLVM Package'
+
+  - task: UniversalPackages@0
+    displayName: 'Download Package'
+    inputs:
+      command: download
+      vstsFeed: Project%20Verona/LLVMBuild@Release
+      vstsFeedPackage: $(PKG_NAME)
+      vstsPackageVersion: '*'
+      downloadDirectory: '$(Build.SourcesDirectory)'
+
+  - bash: |
+      ./utils/llvm/setup-llvm-builddir.sh $(PKG_NAME).tar.gz
+    displayName: 'Setup LLVM Build dir'
+    workingDirectory: '$(Build.SourcesDirectory)'
+
+  - task: CMake@1
+    displayName: 'CMake'
+    inputs:
+      cmakeArgs: |
+        .. -GNinja -DCMAKE_CXX_FLAGS="$(CXXFLAGS)" -DVERONA_CI_BUILD=On -DSNMALLOC_CI_BUILD=On -DRT_TESTS=$(RTTests)
+    displayName: 'CMake .. -GNinja -DCMAKE_CXX_FLAGS="$(CXXFLAGS)" -DVERONA_CI_BUILD=On -DSNMALLOC_CI_BUILD=On -DRT_TESTS=$(RTTests)'
+
+  - script: |
+      cd build
+      ninja
+    displayName: 'Compile'
 
   - script: |
       ctest -j 4 -E "([1-9][0-9]00|[4-9]00)" --timeout 400 --output-on-failure --interactive-debug-mode 0 -C $(BuildType)
+      ninja check-verona-mlir
     workingDirectory: build/
     failOnStderr: true
     displayName: Tests
@@ -156,40 +232,66 @@ jobs:
     inputs:
       failOnAlert: true
 
+############################################## MacOS Builds
 - job: 
-  displayName: macOS
+  displayName: MacOS
   dependsOn: ConfigureCIRun
   condition: eq(dependencies.ConfigureCIRun.outputs['setVarStep.docOnly'], 'false')
   variables: 
     RTTests: $[ dependencies.ConfigureCIRun.outputs['setVarStep.testRuntime'] ]
-
+    LLVMCommit: $[ dependencies.ConfigureCIRun.outputs['setVarStep.LLVMCommit'] ]
   pool:
     vmImage: 'macOS-10.14'
   strategy:
     matrix:
       Debug:
+        CXXFLAGS: "-std=c++17"
         BuildType: Debug
       Release:
+        CXXFLAGS: "-std=c++17"
         BuildType: Release
 
   steps:
   - checkout: self
-    submodules: recursive
+
+  - script: |
+      set -eo pipefail
+      git submodule init
+      git submodule update --depth 1 --recursive
+    displayName: 'Checkout submodules'
 
   - script: |
       set -eo pipefail
       sudo pip install wheel OutputCheck
-    displayName:  Dependencies
+    displayName: 'Dependencies'
+
+  - script:
+      echo "##vso[task.setvariable variable=PKG_NAME]verona-llvm-x86_64-macos-release-$(LLVMCommit)"
+    displayName: 'Set LLVM Package'
+
+  - task: UniversalPackages@0
+    displayName: 'Download Package'
+    inputs:
+      command: download
+      vstsFeed: Project%20Verona/LLVMBuild@Release
+      vstsFeedPackage: $(PKG_NAME)
+      vstsPackageVersion: '*'
+      downloadDirectory: /tmp/
+
+  - bash: |
+      set -eo pipefail
+      ./utils/llvm/setup-llvm-builddir.sh /tmp/$(PKG_NAME).tar.gz
+    displayName: 'Setup LLVM Build dir'
+    workingDirectory: '$(Build.SourcesDirectory)'
 
   - task: CMake@1
-    displayName: 'CMake .. -DCMAKE_BUILD_TYPE=$(BuildType) -DVERONA_CI_BUILD=On -DRT_TESTS=$(RTTests)'
+    displayName: 'CMake .. -DCMAKE_CXX_FLAGS="$(CXXFLAGS)" -DCMAKE_BUILD_TYPE=$(BuildType) -DVERONA_CI_BUILD=On -DRT_TESTS=$(RTTests)'
     inputs:
-      cmakeArgs: '.. -DCMAKE_BUILD_TYPE=$(BuildType) -DVERONA_CI_BUILD=On -DSNMALLOC_CI_BUILD=On -DRT_TESTS=$(RTTests)'
+      cmakeArgs: .. -DCMAKE_CXX_FLAGS="$(CXXFLAGS)" -DCMAKE_BUILD_TYPE=$(BuildType) -DVERONA_CI_BUILD=On -DSNMALLOC_CI_BUILD=On -DRT_TESTS=$(RTTests)
 
   - script: |
       set -eo pipefail
       make -j 4 install
-
     workingDirectory: build
     failOnStderr: true
     displayName: 'Compile'
@@ -197,17 +299,24 @@ jobs:
   - script: |
       set -eo pipefail
       ctest -j 4 -E "([1-9][0-9]00|[4-9]00)" --timeout 400 --output-on-failure
+      make check-verona-mlir
     workingDirectory: build/
     failOnStderr: true
     displayName: Tests suite
 
+############################################## Clang Format Check
 - job: 
   displayName: Format
   pool:
     vmImage: 'ubuntu-18.04'
   steps:
   - checkout: self
-    submodules: recursive
+
+  - script: |
+      set -eo pipefail
+      git submodule init
+      git submodule update --depth 1 --recursive
+    displayName: 'Update submodules'
 
   - script: |
       set -eo pipefail
@@ -216,13 +325,12 @@ jobs:
       sudo apt-get update
       sudo apt-get install -y clang-format-9 clang-tidy-9
       sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-9 100
-
     displayName: 'Install Clang tools'
 
   - task: CMake@1
-    displayName: 'CMake ..'
+    displayName: 'CMake .. -DDISABLE_LLVM_BUILD=ON'
     inputs:
-      cmakeArgs: '..'
+      cmakeArgs: '.. -DDISABLE_LLVM_BUILD=ON'
 
   - script: |
       set -eo pipefail

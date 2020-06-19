@@ -16,14 +16,14 @@ jobs:
       Clang Release:
         CC: clang
         CXX: clang++
-        CXXFLAGS: -stdlib=libstdc++
+        CXXFLAGS: "-stdlib=libstdc++ -std=c++17"
         BuildType: Release
         BuildName: release
         Sanitizer:
       Clang Debug+ASAN:
         CC: clang
         CXX: clang++
-        CXXFLAGS: -stdlib=libstdc++
+        CXXFLAGS: "-stdlib=libstdc++ -std=c++17"
         BuildType: Debug
         BuildName: debug
         Sanitizer: Address
@@ -50,7 +50,7 @@ jobs:
     displayName: 'CMake'
     inputs:
       cmakeArgs: |
-        ../llvm -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_C_COMPILER=$(CC) -DCMAKE_CXX_COMPILER=$(CXX) -DCMAKE_CXX_FLAGS=$(CXXFLAGS) -DLLVM_USE_SANITIZER=$(Sanitizer) -DLLVM_ENABLE_PROJECTS=mlir -DLLVM_TARGETS_TO_BUILD="X86" -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_ENABLE_LLD=ON -DLLVM_ENABLE_EH=ON -DLLVM_ENABLE_RTTI=ON
+        ../llvm -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_C_COMPILER=$(CC) -DCMAKE_CXX_COMPILER=$(CXX) -DCMAKE_CXX_FLAGS="$(CXXFLAGS)" -DLLVM_USE_SANITIZER=$(Sanitizer) -DLLVM_ENABLE_PROJECTS=mlir -DLLVM_TARGETS_TO_BUILD="X86" -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_ENABLE_LLD=ON -DLLVM_ENABLE_EH=ON -DLLVM_ENABLE_RTTI=ON
 
   - script: |
       set -eo pipefail
@@ -86,9 +86,17 @@ jobs:
   strategy:
     matrix:
       Debug:
+        CC: 'C:/Program Files/LLVM/bin/clang.exe'
+        CXX: 'C:/Program Files/LLVM/bin/clang++.exe'
+        MAKE: 'C:/ProgramData/chocolatey/bin/ninja.exe'
+        CXXFLAGS: "-std=c++17"
         BuildType: Debug
         BuildName: debug
       Release:
+        CC: 'C:/Program Files/LLVM/bin/clang.exe'
+        CXX: 'C:/Program Files/LLVM/bin/clang++.exe'
+        MAKE: 'C:/ProgramData/chocolatey/bin/ninja.exe'
+        CXXFLAGS: "-std=c++17"
         BuildType: Release
         BuildName: release
   variables:
@@ -112,8 +120,8 @@ jobs:
     inputs:
       targetType: inline
       script:
-        C:\ProgramData\chocolatey\bin\choco install --accept-license -y cmake
-    displayName: 'Install CMake'
+        C:\ProgramData\chocolatey\bin\choco install --accept-license -y cmake llvm ninja
+    displayName: 'Install Dependencies'
 
   - script: |
       git checkout master
@@ -121,18 +129,24 @@ jobs:
       git checkout $(GOOD_HASH)
     displayName: 'Prepare tree'
 
-  - script: |
-      rd /s /q build
-      mkdir build
-      cd build
-      "C:\Program Files\CMake\bin\cmake.exe" ..\llvm -G"Visual Studio 16 2019" -DLLVM_ENABLE_PROJECTS=mlir -DLLVM_TARGETS_TO_BUILD="X86" -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_ENABLE_EH=ON -DLLVM_ENABLE_RTTI=ON
-    displayName: 'CMake'
-
-  - task: MSBuild@1
-    displayName: 'Build LLVM'
+  - task: PowerShell@2
     inputs:
-      solution: build/INSTALL.vcxproj
-      msbuildArguments: '/m /p:Configuration=$(BuildType)'
+      targetType: inline
+      script:
+        if (Test-Path -Path build){rm -r build}; mkdir build
+    displayName: 'Prepare build directory'
+
+  - powershell: |
+      & 'C:/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/VC/Auxiliary/Build/vcvars64.bat';
+      & 'C:/Program Files/CMake/bin/cmake.exe' ../llvm -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_C_COMPILER='$(CC)' -DCMAKE_CXX_COMPILER='$(CXX)' -DCMAKE_CXX_FLAGS='$(CXXFLAGS)' -DLLVM_ENABLE_PROJECTS=mlir -DLLVM_TARGETS_TO_BUILD='X86' -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_ENABLE_LLD=ON -DLLVM_ENABLE_EH=ON -DLLVM_ENABLE_RTTI=ON -DCMAKE_MAKE_PROGRAM='$(MAKE)' -DMSVC=True -DLLVM_INCLUDE_TESTS=False
+      #-DHAVE_CXX_ATOMICS_WITHOUT_LIB=True -DHAVE_CXX_ATOMICS64_WITHOUT_LIB=True
+    workingDirectory: build
+    displayName: 'CMake ../llvm -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_C_COMPILER="$(CC)" -DCMAKE_CXX_COMPILER="$(CXX)" -DCMAKE_CXX_FLAGS="$(CXXFLAGS)" -DLLVM_ENABLE_PROJECTS=mlir -DLLVM_TARGETS_TO_BUILD="X86" -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_ENABLE_LLD=ON -DLLVM_ENABLE_EH=ON -DLLVM_ENABLE_RTTI=ON -DCMAKE_MAKE_PROGRAM="$(MAKE)"'
+
+  - script: |
+      cd build
+      ninja
+    displayName: 'Compile'
 
   - script: |
       rd /s /q $(PKG_NAME)
@@ -161,9 +175,11 @@ jobs:
   strategy:
     matrix:
       Release:
+        CXXFLAGS: "-std=c++17"
         BuildType: Release
         BuildName: release
       Debug:
+        CXXFLAGS: "-std=c++17"
         BuildType: Debug
         BuildName: debug
   variables:
