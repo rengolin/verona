@@ -1,0 +1,28 @@
+// Simple messages (no fmt)
+
+no-input-file-provided="No input file provided"
+
+no-output-file-provided="No output file provided"
+
+// Formatted messages
+
+// Ex: MLIR verification failed with Verona file
+verification-failed="%s verification failed with %s file"
+
+// Ex: Cannot open file 'foo.verona': No such file"
+cannot-open-file="Cannot open file '%s': %s"
+
+// Ex: Failed to lower to LLVM IR
+lowering-failed="Failed to lower to %s"
+
+// Ex: Failed to lower to LLVM dialect
+dialect-lowering-failed="Failed to lower to %s dialect"
+
+// Ex: Function calls not implemented yet
+not-implemented-yet="%s not implemented yet"
+
+// Ex: Node 'foo' not implemented yet
+construct-not-implemented-yet="%s '%s' not implemented yet"
+
+// Ex: Value [token = foo] not implemented yet
+value-not-implemented-yet="Value [%s = %s] not implemented yet"

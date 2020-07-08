@@ -1,0 +1,23 @@
+// Vedere i18n/en/mlir-verona.txt per esempi
+
+// Messaggi semplici
+
+no-input-file-provided="File di input non fornito"
+
+no-input-file-provided="File di output non fornito"
+
+// Messaggi formattati
+
+verification-failed="Controllo %s non riuscito con file %s"
+
+cannot-open-file="Errore durante l'apertura del file '%s': %s"
+
+lowering-failed="Errore durante la generazione del %s"
+
+dialect-lowering-failed="Errore durante la generazione del dialetto %s"
+
+not-implemented-yet="%s non ancora implementato"
+
+construct-not-implemented-yet="%s '%s' non ancora implementato"
+
+value-not-implemented-yet="Valore [%s = %s] non ancora implementato"
