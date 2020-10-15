@@ -7,6 +7,7 @@
 #include "dialect/VeronaOps.h"
 #include "dialect/VeronaTypes.h"
 #include "error.h"
+#include "free-vars.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/MLIRContext.h"
@@ -136,6 +137,9 @@ namespace mlir::verona
 
     /// MLIR context. This is owned by the caller of Generator::lower.
     mlir::MLIRContext* context;
+
+    /// Free variable analysis
+    FreeVariableAnalysis freeVars;
 
     /// MLIR builder.
     mlir::OpBuilder builder;
