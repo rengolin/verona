@@ -43,3 +43,5 @@ target_link_libraries(verona-interop PRIVATE
     clangCodeGen)
 
 install(TARGETS verona-interop RUNTIME DESTINATION .)
+
+add_subdirectory(test)

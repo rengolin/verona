@@ -14,7 +14,7 @@
 #  include <thread>
 #endif
 
-#include "../ds/asymlock.h"
+#include "ds/asymlock.h"
 #include "ds/morebits.h"
 #ifdef USE_SYSTEMATIC_TESTING
 #  include "ds/scramble.h"
